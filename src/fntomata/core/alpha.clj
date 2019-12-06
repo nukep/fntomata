@@ -215,7 +215,9 @@
       p)))
 
 (defn remove-dedupe* [p t]
-  (dissoc p t))
+  (if (empty? (get-in p [t :queued]))
+    (dissoc p t)
+    (assoc-in p [t :queued] [])))
 
 (comment
   (-> {}
@@ -235,6 +237,10 @@
   ;; => {:a {:status :processing, :queued [:a :a]}, :b {:status :processing, :queued []}}
 
   (-> {:a {:status :processing, :queued [:a]}}
+      (remove-dedupe* :a))
+  ;; => {:a {:status :processing, :queued []}}
+
+  (-> {:a {:status :processing, :queued []}}
       (remove-dedupe* :a))
   ;; => {}
 
