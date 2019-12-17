@@ -8,6 +8,6 @@
                  [org.clojure/core.async "0.5.527"]
                  [org.clojure/core.cache "0.8.2"]]
   :target-path "target/%s"
-  :repl-options {:init-ns fntomata.core.alpha}
+  :repl-options {:init-ns fntomata.core.alpha2}
   :deploy-repositories [["releases" :clojars]
                         ["snapshots" :clojars]])
