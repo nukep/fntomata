@@ -1,6 +1,43 @@
 (ns fntomata.core.alpha2
   (:require [clojure.core.async :as async]
-            [clojure.core.cache :as cache]))
+            [clojure.core.cache :as cache]
+            [clojure.core :as core]))
+
+(declare then)
+(declare replace-then)
+(declare bind-error)
+
+;; if is a special form. All (if ...) forms in this file will still use the Clojure's built-in if form, and not this function.
+;; A user would access it by qualifying its namespace, like `(q/if ...)`.
+(defn if*
+  ([cond-fn truthy-fn falsey-fn]
+   (if* {} cond-fn truthy-fn falsey-fn))
+
+  ([{:keys [bind] :or {bind bind-error}} cond-fn truthy-fn falsey-fn]
+   (fn [a k]
+     (cond-fn a (replace-then k (fn [ma] (bind k ma (fn [k2 a2] (if a2
+                                                                  (truthy-fn a k2)
+                                                                  (falsey-fn a k2))))))))))
+(def if if*)
+
+;; when is _not_ a special form. To use clojure.core's (when ...) in this file, we have to qualify it. e.g. (core/when ...)
+(defn when
+  ([cond-fn true-fn]
+   (when {} cond-fn true-fn))
+  ([opts cond-fn true-fn]
+   (if* opts cond-fn true-fn (fn [a k] (then k nil)))))
+
+(comment
+  
+  ((if* {:bind fntomata.core.alpha2.list-monad/bind-list}
+        (fn [a k] (then k [a true false]))
+        (fn [a k] (then k [:truthy :T]))
+        (fn [a k] (then k [:falsey :F])))
+   1
+   {:then (fn [result] (println "RESULT" result))})
+  ;; => RESULT (:truthy :T :truthy :T :falsey :F)
+  
+  )
 
 (defn create-deduping-on-message
   "Creates an on-message function that relays a message of a given ID to `f` no more than once.
@@ -116,7 +153,7 @@
 
           ;; `in` is closed. Flush the buffer. Stop processing.
           (nil? v)
-          (when (seq buf)
+          (core/when (seq buf)
             (async/>! out buf)
             (async/close! out))
 
@@ -245,7 +282,7 @@
       (let [t (select-fn arg)
             new-state (swap! state update-dedupe* t [arg k])
             t-count (count (get-in new-state [t :queued]))]
-        (when (= t-count 0)
+        (core/when (= t-count 0)
           (dedupe-queueing-as-batch* f state t [[arg k]]))))))
 
 (defn dedupe-queueing [f]
@@ -311,7 +348,7 @@
       (async/put! concurrency-chan :unimportant-value))
 
     (async/go-loop []
-      (when (async/<! concurrency-chan)
+      (core/when (async/<! concurrency-chan)
         (let [[arg k] (async/<! a-k-chan)]
           (f arg (replace-then k (fn [ma] (async/put! concurrency-chan :unimportant-value) (then k ma))))
           (recur))))
